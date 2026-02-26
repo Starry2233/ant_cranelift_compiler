@@ -139,10 +139,28 @@ impl WasmCompiler {
             local_decls.push((count, current_type));
         }
         let mut func = Function::new(local_decls);
-        
+
         // Second pass: compile
         self.next_local = params.len() as u32; // Reset for compilation
         self.compile_expr(&mut func, body)?;
+        
+        // Ensure return value is on stack for non-void functions
+        if !wasm_result.is_empty() {
+            // Check if body is a Block - statements don't leave values unless last is ExpressionStatement
+            if let TypedExpression::Block(_, stmts, _) = body {
+                let last_is_expr = stmts.last().map_or(false, |s| {
+                    matches!(s, TypedStatement::ExpressionStatement(_))
+                });
+                if !last_is_expr {
+                    // Add default return value
+                    match wasm_result[0] {
+                        WasmType::I32 => { func.instruction(&Instruction::I32Const(0)); }
+                        WasmType::I64 => { func.instruction(&Instruction::I64Const(0)); }
+                    }
+                }
+            }
+        }
+        
         func.instruction(&Instruction::Return);
         func.instruction(&Instruction::End);
         

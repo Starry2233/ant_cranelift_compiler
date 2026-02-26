@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant WebAssembly 测试</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            width: 100%;
+            cursor: pointer;
+        }
+        input[type="file"]:hover {
+            border-color: #4CAF50;
+        }
+        .function-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .function-item {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        .function-item h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .function-item input {
+            width: 60px;
+            padding: 5px;
+            margin: 2px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .function-item button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .function-item button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .info {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        #output {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+        .status.error {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Ant WebAssembly 测试器</h1>
+    
+    <div class="card">
+        <h2>📁 加载 WASM 文件</h2>
+        <input type="file" id="wasmFile" accept=".wasm" />
+        <div id="fileStatus"></div>
+    </div>
+    
+    <div class="card" id="functionsCard" style="display: none;">
+        <h2>⚙️ 导出函数</h2>
+        <div id="functionList" class="function-list"></div>
+    </div>
+    
+    <div class="card">
+        <h2>📋 输出日志</h2>
+        <div id="output">等待加载 WASM 文件...</div>
+    </div>
+
+    <script>
+        let wasmInstance = null;
+        let wasmModule = null;
+
+        const log = (msg, type = 'info') => {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            output.textContent += `[${timestamp}] ${prefix} ${msg}\n`;
+            output.scrollTop = output.scrollHeight;
+        };
+
+        const clearLog = () => {
+            document.getElementById('output').textContent = '';
+        };
+
+        document.getElementById('wasmFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            clearLog();
+            log(`正在加载文件：${file.name}`);
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                wasmModule = await WebAssembly.compile(arrayBuffer);
+                
+                const imports = {
+                    env: {
+                        // 可以添加需要的导入函数
+                    }
+                };
+                
+                wasmInstance = await WebAssembly.instantiate(wasmModule, imports);
+                
+                log(`WASM 加载成功！大小：${file.size} 字节`, 'success');
+                document.getElementById('fileStatus').innerHTML = 
+                    '<span class="status success">✓ 已加载</span>';
+                
+                showFunctions();
+            } catch (error) {
+                log(`加载失败：${error.message}`, 'error');
+                document.getElementById('fileStatus').innerHTML = 
+                    '<span class="status error">✗ 加载失败</span>';
+            }
+        });
+
+        const showFunctions = () => {
+            const exports = wasmInstance.exports;
+            const functionList = document.getElementById('functionList');
+            const functionsCard = document.getElementById('functionsCard');
+            
+            functionList.innerHTML = '';
+            const functions = Object.keys(exports).filter(key => typeof exports[key] === 'function');
+            
+            if (functions.length === 0) {
+                log('未找到导出的函数', 'error');
+                return;
+            }
+            
+            log(`找到 ${functions.length} 个导出函数：${functions.join(', ')}`, 'success');
+            
+            functions.forEach(name => {
+                const fn = exports[name];
+                const item = document.createElement('div');
+                item.className = 'function-item';
+                
+                // 猜测参数数量（简单启发式）
+                const guessedParams = fn.length > 0 ? fn.length : 2;
+                
+                let inputsHtml = '';
+                for (let i = 0; i < guessedParams; i++) {
+                    inputsHtml += `<input type="number" id="${name}_param_${i}" placeholder="参数${i+1}" />`;
+                }
+                
+                item.innerHTML = `
+                    <h3>${name}</h3>
+                    <div>${inputsHtml}</div>
+                    <button onclick="callFunction('${name}', ${guessedParams})">调用</button>
+                    <div id="${name}_result" class="result" style="display:none;"></div>
+                `;
+                
+                functionList.appendChild(item);
+            });
+            
+            functionsCard.style.display = 'block';
+        };
+
+        window.callFunction = (name, paramCount) => {
+            if (!wasmInstance) return;
+            
+            const fn = wasmInstance.exports[name];
+            const args = [];
+            
+            for (let i = 0; i < paramCount; i++) {
+                const input = document.getElementById(`${name}_param_${i}`);
+                if (input && input.value !== '') {
+                    args.push(Number(input.value));
+                }
+            }
+            
+            const resultDiv = document.getElementById(`${name}_result`);
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            
+            try {
+                const result = fn(...args);
+                resultDiv.textContent = `结果：${result}`;
+                log(`${name}(${args.join(', ')}) = ${result}`, 'success');
+            } catch (error) {
+                resultDiv.textContent = `错误：${error.message}`;
+                resultDiv.className = 'result error';
+                log(`${name} 调用失败：${error.message}`, 'error');
+            }
+        };
+
+        // 自动加载 test.wasm（如果存在）
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('test.wasm');
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    wasmModule = await WebAssembly.compile(arrayBuffer);
+                    wasmInstance = await WebAssembly.instantiate(wasmModule);
+                    
+                    log('自动加载 test.wasm 成功！', 'success');
+                    document.getElementById('fileStatus').innerHTML = 
+                        '<span class="status success">✓ 已加载 test.wasm</span>';
+                    showFunctions();
+                }
+            } catch (e) {
+                log('未找到 test.wasm，请手动选择文件', 'info');
+            }
+        });
+    </script>
+</body>
+</html>

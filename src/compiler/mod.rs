@@ -4,6 +4,7 @@ pub mod compile_state_impl;
 pub mod compiler_impl;
 pub mod handler;
 pub mod table;
+pub mod wasm_gen;
 
 mod constants;
 mod convert_type;
@@ -174,7 +175,7 @@ pub fn compile_to_executable(
         // let _target: String = read_arg().map(|args|args.target_triple).unwrap_or(_target.to_string());
         // let target: &str = _target.as_str();
 
-        // -------- 先用 cc 生成 libxxx.a --------
+        // -------- 准备 backend c compiler --------
         let mut build = cc::Build::new();
         build
             .object(&object_file_path)
@@ -183,6 +184,12 @@ pub fn compile_to_executable(
             .cargo_metadata(false)
             .out_dir(output_path.parent().unwrap_or(Path::new("")));
 
+        if let Some(args) = read_arg()
+            && !args.backend_c_compiler.trim().is_empty()
+        {
+            build.compiler(&args.backend_c_compiler);
+        }
+
         if let Some(args) = read_arg() {
             let opt = &args.opt_level;
 
@@ -190,10 +197,11 @@ pub fn compile_to_executable(
         } else {
             build.opt_level(0);
         }
-        
-        build.try_compile(output_path.file_stem().unwrap().to_str().unwrap())?;
 
         let compiler = build.get_compiler();
+
+        // -------- 先用 cc 生成 libxxx.a --------
+        build.try_compile(output_path.file_stem().unwrap().to_str().unwrap())?;
 
         let lib_name = format!(
             "lib{}.a",
@@ -265,7 +273,10 @@ pub fn compile_to_executable(
 
         // macOS: 不要 static / 不要 -lc（clang 自动处理）
 
-        command.status().expect("link failed");
+        let status = command.status().expect("link failed");
+        if !status.success() {
+            return Err(format!("linker exited with status: {status}").into());
+        }
 
         fs::remove_file(lib_path)?;
     }

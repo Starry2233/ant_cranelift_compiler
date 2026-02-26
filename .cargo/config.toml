@@ -1,0 +1,3 @@
+[env]
+RUSTFLAGS = { value = "", force = true }
+CARGO_ENCODED_RUSTFLAGS = { value = "", force = true }

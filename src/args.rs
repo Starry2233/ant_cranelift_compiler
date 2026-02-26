@@ -39,6 +39,10 @@ pub struct Args {
     #[arg(short = 'T', long = "target-triple", default_value = "")]
     pub target_triple: String,
 
+    /// Backend C Compiler，可指定 gcc/clang/zig cc 等工具链入口
+    #[arg(long = "backend-c-compiler", default_value = "")]
+    pub backend_c_compiler: String,
+
     /// 是否仅编译，不链接
     #[arg(short = 'c', long = "compile-only")]
     pub compile_only: bool,

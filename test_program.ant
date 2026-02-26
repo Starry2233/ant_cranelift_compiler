@@ -1,11 +1,13 @@
+func add(x: i32, y: i32) -> i32 {
+    x + y
+}
+
+func mul(x: i32, y: i32) -> i32 {
+    x * y
+}
+
 func main() -> i32 {
-	extern "C" func printf(s: str, ...) -> i32;
-
-	let a = 1i64;
-
-	func f() -> i64 {
-		let a = 110i64;
-	}
-
-	printf("%d\n", a); 
+    let a = 10i32;
+    let b = 20i32;
+    add(a, b)
 }

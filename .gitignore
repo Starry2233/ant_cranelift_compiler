@@ -19,3 +19,6 @@ desktop.ini
 *.ilk
 *.exp
 *.out
+*.wasm
+test_*.js
+debug_*.js
